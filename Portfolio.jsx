@@ -100,11 +100,11 @@ const INTRO_STAGES = [
   },
   {
     role: "AI Engineer",
-    lines: ["He also builds A I powered applications, agents, RAG systems, and LLM workflows."],
+    lines: ["He also builds AI powered applications, agents, RAG systems, and LLM workflows."],
   },
   {
     role: "Cloud & DevOps Engineer",
-    lines: ["He works with cloud platforms, containers, CI CD, and scalable infrastructure."],
+    lines: ["He works with cloud platforms, containers, CICD, and scalable infrastructure."],
   },
   {
     role: "Software Engineer",
@@ -300,7 +300,6 @@ function AIPortfolioAssistant({ dark }) {
 
   // In-memory guards (NOT sessionStorage — browser storage APIs are unsupported
   // in this artifact preview; swap in real sessionStorage in your own deployment).
-  const hasStartedRef = useRef(false);
   const gestureUnlockedRef = useRef(false);
   const timeoutsRef = useRef([]);
 
@@ -323,76 +322,69 @@ function AIPortfolioAssistant({ dark }) {
     return byQuality || byName || anyEnglish || voices[0];
   };
 
-const speakLines = (lines, onAllDone) => {
-  if (!lines || lines.length === 0) {
-    onAllDone?.();
-    return;
-  }
-
-  const [line, ...rest] = lines;
-
-  const utter = new SpeechSynthesisUtterance(line);
-
-  const speak = () => {
-    const voices = window.speechSynthesis.getVoices();
-
-    const voice =
-      voices.find((v) =>
-        /natural|neural|online/i.test(v.name)
-      ) ||
-      voices.find((v) =>
-        /en-US|en-GB|en-IN/i.test(v.lang)
-      ) ||
-      voices.find((v) =>
-        /^en/i.test(v.lang)
-      );
-
-    if (voice) {
-      utter.voice = voice;
+  const speakLines = (lines, onAllDone) => {
+    if (!lines || lines.length === 0) {
+      onAllDone?.();
+      return;
     }
 
-    utter.lang = "en-US";
-    utter.rate = 0.95;
-    utter.pitch = 1;
+    const [line, ...rest] = lines;
+    const utter = new SpeechSynthesisUtterance(line);
 
-    utter.onstart = () => {
-      gestureUnlockedRef.current = true;
-      setNeedsGesture(false);
-      setState("speaking");
+    const speak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const indiaVoiceNames = [
+        "Microsoft Ravi",
+        "Microsoft Heera",
+        "Google हिन्दी",
+        "Google English (India)",
+        "English India",
+      ];
+
+      const voice =
+        voices.find((v) =>
+          indiaVoiceNames.some((name) =>
+            v.name.toLowerCase().includes(name.toLowerCase())
+          )
+        ) ||
+        voices.find((v) => v.lang === "en-IN") ||
+        voices.find((v) => v.lang.toLowerCase().startsWith("en-in")) ||
+        voices.find((v) => v.lang === "en-IN") ||
+        voices[0];
+
+      if (voice) utter.voice = voice;
+
+      utter.lang = "en-IN";
+      utter.rate = 0.92;
+      utter.pitch = 0.95;
+      utter.volume = 1;
+
+      utter.onstart = () => {
+        gestureUnlockedRef.current = true;
+        setNeedsGesture(false);
+        setState("speaking");
+      };
+
+      utter.onend = () => {
+        setTimeout(() => speakLines(rest, onAllDone), 250);
+      };
+
+      utter.onerror = (event) => {
+        console.warn("Speech synthesis error:", event.error);
+        setTimeout(() => speakLines(rest, onAllDone), 300);
+      };
+
+      window.speechSynthesis.speak(utter);
     };
 
-    utter.onend = () => {
-      setTimeout(() => {
-        speakLines(rest, onAllDone);
-      }, 250);
-    };
+    const voices = window.speechSynthesis.getVoices();
 
-    utter.onerror = (event) => {
-      console.warn("Speech synthesis error:", event.error);
-
-      // Do not get stuck if speech fails.
-      // Continue to the next line.
-      setTimeout(() => {
-        speakLines(rest, onAllDone);
-      }, 300);
-    };
-
-    window.speechSynthesis.speak(utter);
+    if (voices.length === 0) {
+      window.speechSynthesis.addEventListener("voiceschanged", speak, { once: true });
+    } else {
+      speak();
+    }
   };
-
-  // Some browsers load voices asynchronously
-  const voices = window.speechSynthesis.getVoices();
-
-  if (voices.length === 0) {
-    window.speechSynthesis.addEventListener(
-      "voiceschanged",
-      speak,
-      { once: true }
-    );
-  } else {
-    speak();
-  }
-};
 
   const runIntroSequence = () => {
     setState("thinking");
@@ -422,106 +414,98 @@ const speakLines = (lines, onAllDone) => {
       playStage();
     });
   };
-useEffect(() => {
-  if (!("speechSynthesis" in window)) {
-    setState("complete");
-    setBubbleText("Voice introduction is not supported in this browser.");
-    setShowQuickActions(true);
-    return;
-  }
 
-  let cancelled = false;
+  useEffect(() => {
+    if (!("speechSynthesis" in window)) {
+      setState("complete");
+      setBubbleText("Voice introduction is not supported in this browser.");
+      setShowQuickActions(true);
+      return;
+    }
 
-  const startIntroduction = () => {
-    if (cancelled) return;
+    let cancelled = false;
 
-    window.speechSynthesis.cancel();
-
-    setState("thinking");
-    setBubbleText("Preparing your introduction...");
-
-    setTimeout(() => {
+    const startIntroduction = () => {
       if (cancelled) return;
 
-      setState("speaking");
+      window.speechSynthesis.cancel();
 
-      let stageIdx = 0;
+      setState("thinking");
+      setBubbleText("Preparing your introduction...");
 
-      const playStage = () => {
+      setTimeout(() => {
         if (cancelled) return;
 
-        if (stageIdx >= INTRO_STAGES.length) {
-          setState("complete");
-          setBubbleText("Explore my work below.");
+        setState("speaking");
 
-          setTimeout(() => {
-            if (!cancelled) {
-              setState("idle");
-              setShowQuickActions(true);
-            }
-          }, 1800);
+        let stageIdx = 0;
 
-          return;
-        }
-
-        const stage = INTRO_STAGES[stageIdx];
-
-        // IMPORTANT:
-        // Update text immediately.
-        // Do not wait for voice to start.
-        setBubbleText(stage.lines.join(" "));
-
-        speakLines(stage.lines, () => {
+        const playStage = () => {
           if (cancelled) return;
 
-          stageIdx += 1;
-          playStage();
-        });
-      };
+          if (stageIdx >= INTRO_STAGES.length) {
+            setState("complete");
+            setBubbleText("Explore my work below.");
 
-      playStage();
-    }, 700);
-  };
+            setTimeout(() => {
+              if (!cancelled) {
+                setState("idle");
+                setShowQuickActions(true);
+              }
+            }, 1800);
 
-  const startTimer = setTimeout(() => {
-    startIntroduction();
-  }, 1200);
+            return;
+          }
 
-  const gestureUnlock = () => {
-    if (cancelled) return;
+          const stage = INTRO_STAGES[stageIdx];
 
-    window.speechSynthesis.cancel();
-    startIntroduction();
+          // Show the response immediately while the browser prepares speech.
+          setBubbleText(stage.lines.join(" "));
 
-    document.removeEventListener("click", gestureUnlock);
-    document.removeEventListener("keydown", gestureUnlock);
-  };
+          speakLines(stage.lines, () => {
+            if (cancelled) return;
+            stageIdx += 1;
+            playStage();
+          });
+        };
 
-  // Try automatic start
-  startTimer;
+        playStage();
+      }, 700);
+    };
 
-  // Fallback for browser autoplay restrictions
-  const gestureTimer = setTimeout(() => {
-    if (!gestureUnlockedRef.current) {
-      setNeedsGesture(true);
+    const startTimer = setTimeout(startIntroduction, 1200);
 
-      document.addEventListener("click", gestureUnlock, { once: true });
-      document.addEventListener("keydown", gestureUnlock, { once: true });
-    }
-  }, 3500);
+    const gestureUnlock = () => {
+      if (cancelled) return;
 
-  return () => {
-    cancelled = true;
+      window.speechSynthesis.cancel();
+      startIntroduction();
 
-    clearTimeout(startTimer);
-    clearTimeout(gestureTimer);
+      document.removeEventListener("click", gestureUnlock);
+      document.removeEventListener("keydown", gestureUnlock);
+    };
 
-    window.speechSynthesis.cancel();
+    const gestureTimer = setTimeout(() => {
+      if (!gestureUnlockedRef.current) {
+        setNeedsGesture(true);
 
-    document.removeEventListener("click", gestureUnlock);
-    document.removeEventListener("keydown", gestureUnlock);
-  };
-}, []);
+        document.addEventListener("click", gestureUnlock, { once: true });
+        document.addEventListener("keydown", gestureUnlock, { once: true });
+      }
+    }, 3500);
+
+    return () => {
+      cancelled = true;
+
+      clearTimeout(startTimer);
+      clearTimeout(gestureTimer);
+
+      window.speechSynthesis.cancel();
+
+      document.removeEventListener("click", gestureUnlock);
+      document.removeEventListener("keydown", gestureUnlock);
+    };
+  }, []);
 
   const runQuickAction = (action) => {
     window.speechSynthesis.cancel();
@@ -552,20 +536,18 @@ useEffect(() => {
         <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-600 animate-spin-slow" />
 
         <div
-          className={`relative w-full h-full rounded-full overflow-hidden border-4 ${
-            speaking
+          className={`relative w-full h-full rounded-full overflow-hidden border-4 ${speaking
               ? "border-blue-500 shadow-2xl shadow-blue-500/50"
               : dark
                 ? "border-slate-700 shadow-2xl shadow-blue-950/30"
                 : "border-white shadow-2xl shadow-slate-400/40"
-          } transition-all duration-500`}
+            } transition-all duration-500`}
         >
           <img
             src="/images/vinoth-profile.jpg"
             alt="Vinothkumar Palanisamy - Full Stack and AI Engineer"
-            className={`w-full h-full object-cover object-center transition-transform duration-700 ${
-              speaking ? "scale-105" : "group-hover:scale-105"
-            }`}
+            className={`w-full h-full object-cover object-center transition-transform duration-700 ${speaking ? "scale-105" : "group-hover:scale-105"
+              }`}
           />
         </div>
 
@@ -610,7 +592,7 @@ useEffect(() => {
         </p>
         {needsGesture && (
           <p className="mt-2 text-xs" style={{ color: dark ? "#93c5fd" : "#2563eb" }}>
-            Click anywhere to enable voice
+            Click anywhere to enable voice introduction
           </p>
         )}
       </div>
@@ -649,43 +631,43 @@ export default function Portfolio() {
 
   const T = dark
     ? {
-        page: "bg-slate-950 text-slate-100",
-        nav: scrolled ? "bg-slate-950/90 backdrop-blur border-b border-slate-800 shadow-sm" : "bg-transparent",
-        navText: "text-slate-300",
-        heroGrad: "from-slate-950 to-slate-900",
-        heading: "text-white",
-        eyebrow: "text-blue-400",
-        body: "text-slate-300",
-        bodyMuted: "text-slate-400",
-        sectionAlt: "bg-slate-900 border-slate-800",
-        card: "bg-slate-900/60 border-slate-800 hover:border-blue-500/60",
-        cardText: "text-slate-400",
-        pillBtn: "bg-white text-slate-900 hover:bg-blue-500 hover:text-white",
-        outlineBtn: "border-slate-700 text-slate-300 hover:border-blue-500 hover:text-blue-400",
-        border: "border-slate-800",
-        timelineDot: "bg-slate-950 border-blue-500",
-        badgeBg: "bg-teal-500/10 text-teal-400 border-teal-500/30",
-        footerBg: "bg-black",
-      }
+      page: "bg-slate-950 text-slate-100",
+      nav: scrolled ? "bg-slate-950/90 backdrop-blur border-b border-slate-800 shadow-sm" : "bg-transparent",
+      navText: "text-slate-300",
+      heroGrad: "from-slate-950 to-slate-900",
+      heading: "text-white",
+      eyebrow: "text-blue-400",
+      body: "text-slate-300",
+      bodyMuted: "text-slate-400",
+      sectionAlt: "bg-slate-900 border-slate-800",
+      card: "bg-slate-900/60 border-slate-800 hover:border-blue-500/60",
+      cardText: "text-slate-400",
+      pillBtn: "bg-white text-slate-900 hover:bg-blue-500 hover:text-white",
+      outlineBtn: "border-slate-700 text-slate-300 hover:border-blue-500 hover:text-blue-400",
+      border: "border-slate-800",
+      timelineDot: "bg-slate-950 border-blue-500",
+      badgeBg: "bg-teal-500/10 text-teal-400 border-teal-500/30",
+      footerBg: "bg-black",
+    }
     : {
-        page: "bg-slate-50 text-slate-900",
-        nav: scrolled ? "bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm" : "bg-transparent",
-        navText: "text-slate-600",
-        heroGrad: "from-white to-slate-50",
-        heading: "text-slate-900",
-        eyebrow: "text-blue-700",
-        body: "text-slate-600",
-        bodyMuted: "text-slate-400",
-        sectionAlt: "bg-white border-slate-100",
-        card: "bg-slate-50/40 border-slate-200 hover:border-blue-300",
-        cardText: "text-slate-500",
-        pillBtn: "bg-slate-900 text-white hover:bg-blue-700",
-        outlineBtn: "border-slate-300 text-slate-700 hover:border-blue-700 hover:text-blue-700",
-        border: "border-slate-200",
-        timelineDot: "bg-white border-blue-600",
-        badgeBg: "bg-teal-50 text-teal-700 border-teal-200",
-        footerBg: "bg-slate-900",
-      };
+      page: "bg-slate-50 text-slate-900",
+      nav: scrolled ? "bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm" : "bg-transparent",
+      navText: "text-slate-600",
+      heroGrad: "from-white to-slate-50",
+      heading: "text-slate-900",
+      eyebrow: "text-blue-700",
+      body: "text-slate-600",
+      bodyMuted: "text-slate-400",
+      sectionAlt: "bg-white border-slate-100",
+      card: "bg-slate-50/40 border-slate-200 hover:border-blue-300",
+      cardText: "text-slate-500",
+      pillBtn: "bg-slate-900 text-white hover:bg-blue-700",
+      outlineBtn: "border-slate-300 text-slate-700 hover:border-blue-700 hover:text-blue-700",
+      border: "border-slate-200",
+      timelineDot: "bg-white border-blue-600",
+      badgeBg: "bg-teal-50 text-teal-700 border-teal-200",
+      footerBg: "bg-slate-900",
+    };
 
   useEffect(() => {
     const onScroll = () => {
@@ -707,6 +689,22 @@ export default function Portfolio() {
   return (
     <div className={`min-h-screen font-sans transition-colors duration-300 ${T.page}`}>
       <style>{`
+
+        .profile-ring {
+          animation: profileRing 8s linear infinite;
+        }
+        @keyframes profileRing {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .profile-float {
+          animation: profileFloat 5s ease-in-out infinite;
+        }
+        @keyframes profileFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+
         .role-enter { animation: roleIn 0.5s ease both; }
         @keyframes roleIn {
           0% { opacity: 0; transform: translateY(10px); filter: blur(6px); }
@@ -793,6 +791,13 @@ export default function Portfolio() {
             >
               {dark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
+            <a
+              href="/resume/Vinothkumar_Palanisamy_Resume.pdf"
+              download="Vinothkumar_Palanisamy_Resume.pdf"
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${T.outlineBtn}`}
+            >
+              Resume
+            </a>
             <a href="mailto:palanivinoth5513@gmail.com" className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${T.pillBtn}`}>
               Hire Me
             </a>
@@ -854,15 +859,13 @@ export default function Portfolio() {
             </Reveal>
 
             <Reveal delay={80}>
-              <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.08] ${T.heading}`}>
+              <h1
+                className={`text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight ${T.heading}`}
+              >
                 Hi, I'm{" "}
                 <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">
-                  Vinothkumar
+                  Vinothkumar Palanisamy
                 </span>
-                <br />
-                Building Intelligent Systems
-                <br />
-                That Actually Work.
               </h1>
             </Reveal>
 
@@ -1015,11 +1018,10 @@ export default function Portfolio() {
                             href={l.url}
                             target="_blank"
                             rel="noreferrer"
-                            className={`inline-flex items-center gap-1 text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${
-                              dark
+                            className={`inline-flex items-center gap-1 text-xs font-semibold rounded-full px-3 py-1.5 border transition-colors ${dark
                                 ? "text-blue-400 border-blue-500/40 hover:bg-blue-500 hover:text-white hover:border-blue-500"
                                 : "text-blue-700 border-blue-200 hover:bg-blue-700 hover:text-white hover:border-blue-700"
-                            }`}
+                              }`}
                           >
                             {l.label} <ExternalLink size={12} />
                           </a>
