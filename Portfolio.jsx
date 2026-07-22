@@ -791,13 +791,6 @@ export default function Portfolio() {
             >
               {dark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <a
-              href="/resume/Vinothkumar_Palanisamy_Resume.pdf"
-              download="Vinothkumar_Palanisamy_Resume.pdf"
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${T.outlineBtn}`}
-            >
-              Resume
-            </a>
             <a href="mailto:palanivinoth5513@gmail.com" className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${T.pillBtn}`}>
               Hire Me
             </a>
