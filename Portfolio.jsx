@@ -195,6 +195,11 @@ const INTRO_STAGES = [
   },
   {
     lines: [
+      "He also worked on an enterprise Azure identity project for the Early Childhood Authority in the UAE, including a two week onsite engagement."
+    ]
+  },
+  {
+    lines: [
       "He is also passionate about data structures and algorithms, problem solving, cloud technologies and DevOps."
     ]
   },
@@ -308,7 +313,7 @@ function DynamicRole({ dark }) {
   }, []);
 
   return (
-    <div className="min-h-[2.75rem] flex items-center justify-center lg:justify-start">
+    <div style={{ minHeight: "2.75rem" }} className="flex items-center justify-center lg:justify-start">
       <span
         key={index}
         className="role-enter inline-flex px-4 py-1.5 rounded-full text-lg sm:text-xl font-semibold border"
@@ -393,6 +398,7 @@ function TechBackground({ dark }) {
 
 function AIPortfolioAssistant({ dark }) {
   const [state, setState] = useState("idle");
+  const [imgError, setImgError] = useState(false);
   const [bubbleText, setBubbleText] = useState(
     "Preparing your introduction..."
   );
@@ -413,26 +419,56 @@ function AIPortfolioAssistant({ dark }) {
     timersRef.current = [];
   };
 
+  const ensureVoicesLoaded = (cb) => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      cb();
+      return;
+    }
+    const handler = () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", handler);
+      cb();
+    };
+    window.speechSynthesis.addEventListener("voiceschanged", handler);
+    // Safety net: some mobile browsers never fire voiceschanged reliably.
+    after(800, () => {
+      window.speechSynthesis.removeEventListener("voiceschanged", handler);
+      cb();
+    });
+  };
+
   const getIndianMaleVoice = () => {
     const voices = window.speechSynthesis.getVoices();
-
     if (!voices.length) return null;
 
-    const preferred = [
-      "microsoft ravi",
-      "ravi",
-      "google english (india)",
-      "english india"
+    // Known Indian-English male voice names across engines/platforms.
+    const maleNames = [
+      "microsoft ravi", "ravi", "microsoft prabhat", "prabhat",
+      "hemant", "rishi", "madhur", "google english (india)", "english india"
+    ];
+    // Known Indian-English female voice names — always excluded, even if
+    // nothing else matches, so a female voice is never picked by accident.
+    const femaleNames = [
+      "microsoft heera", "heera", "kalpana", "lekha", "veena",
+      "priya", "female"
     ];
 
+    const isFemale = (v) => femaleNames.some((n) => v.name.toLowerCase().includes(n));
+    const isMaleHint = (v) => maleNames.some((n) => v.name.toLowerCase().includes(n)) || /\bmale\b/i.test(v.name);
+    const isIndianEnglish = (v) => v.lang.toLowerCase().startsWith("en-in");
+
     return (
-      voices.find(
-        (v) =>
-          v.lang.toLowerCase() === "en-in" &&
-          preferred.some((n) => v.name.toLowerCase().includes(n))
-      ) ||
-      voices.find((v) => v.lang.toLowerCase() === "en-in") ||
-      voices.find((v) => v.lang.toLowerCase().startsWith("en-in")) ||
+      // 1) Explicit Indian + male name match — best case.
+      voices.find((v) => isIndianEnglish(v) && isMaleHint(v)) ||
+      // 2) Any Indian voice as long as it isn't explicitly flagged female
+      //    (many mobile engines expose only one en-IN voice with no gender
+      //    in the name — this avoids defaulting to a female one when a
+      //    same-named male alternative isn't offered).
+      voices.find((v) => isIndianEnglish(v) && !isFemale(v)) ||
+      // 3) Any voice anywhere with an explicit male hint.
+      voices.find((v) => isMaleHint(v) && !isFemale(v)) ||
+      // 4) Last resort: any English voice that isn't explicitly female.
+      voices.find((v) => /^en/i.test(v.lang) && !isFemale(v)) ||
       null
     );
   };
@@ -450,8 +486,8 @@ function AIPortfolioAssistant({ dark }) {
     if (voice) utter.voice = voice;
 
     utter.lang = "en-IN";
-    utter.rate = .9;
-    utter.pitch = .86;
+    utter.rate = .96;
+    utter.pitch = .96;
     utter.volume = 1;
 
     utter.onstart = () => {
@@ -535,10 +571,10 @@ function AIPortfolioAssistant({ dark }) {
 
     cancelledRef.current = false;
 
-    const startTimer = setTimeout(runIntroduction, 1200);
+    const startTimer = setTimeout(() => ensureVoicesLoaded(runIntroduction), 1200);
 
     const unlock = () => {
-      if (!gestureUnlockedRef.current) runIntroduction();
+      if (!gestureUnlockedRef.current) ensureVoicesLoaded(runIntroduction);
     };
 
     const gestureTimer = setTimeout(() => {
@@ -607,17 +643,26 @@ function AIPortfolioAssistant({ dark }) {
         <div
           className={`relative w-full h-full rounded-full overflow-hidden border-4 transition-all duration-500 ${
             speaking
-              ? "border-blue-500 shadow-2xl shadow-blue-500/50 scale-[1.02]"
+              ? "border-blue-500 shadow-2xl shadow-blue-500/50 scale-105"
               : dark
                 ? "border-slate-700 shadow-2xl shadow-blue-950/40"
                 : "border-white shadow-2xl shadow-slate-400/40"
           }`}
         >
-          <img
-            src="/images/vinoth-profile.jpg"
-            alt="Vinothkumar Palanisamy"
-            className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
-          />
+          {imgError ? (
+            <div
+              className={`w-full h-full flex items-center justify-center text-4xl sm:text-5xl font-extrabold bg-gradient-to-br from-blue-500 to-cyan-400 text-white`}
+            >
+              VP
+            </div>
+          ) : (
+            <img
+              src="/images/vinoth-profile.jpg"
+              alt="Vinothkumar Palanisamy"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+            />
+          )}
         </div>
 
         {thinking && (
@@ -650,7 +695,13 @@ function AIPortfolioAssistant({ dark }) {
           </div>
         )}
 
-        <div className="absolute bottom-3 right-0 sm:right-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center gap-2 text-xs font-semibold">
+        <div
+          className={`absolute bottom-3 right-0 sm:right-2 px-3 py-1.5 rounded-full border shadow-lg flex items-center gap-2 text-xs font-semibold ${
+            dark
+              ? "bg-slate-900 border-slate-700 text-slate-200"
+              : "bg-white border-slate-200 text-slate-700"
+          }`}
+        >
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           Available
         </div>
@@ -666,7 +717,7 @@ function AIPortfolioAssistant({ dark }) {
       >
         <p
           key={bubbleText}
-          className="bubble-text text-sm sm:text-[15px] leading-relaxed"
+          className="bubble-text text-sm sm:text-base leading-relaxed"
           style={{
             color: dark ? "#e2e8f0" : "#1e293b"
           }}
@@ -949,7 +1000,44 @@ export default function Portfolio() {
           }
         }
 
+        .chip-in {
+          animation: chipIn .5s ease both;
+        }
+
+        @keyframes chipIn {
+          0% {
+            opacity: 0;
+            transform: translateY(6px) scale(.92);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        .aurora {
+          animation: auroraDrift 14s ease-in-out infinite;
+        }
+
+        @keyframes auroraDrift {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(3%, -4%) scale(1.08); }
+        }
+
+        .cta-pulse {
+          animation: ctaPulse 2.6s ease-in-out infinite;
+        }
+
+        @keyframes ctaPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,.35); }
+          50% { box-shadow: 0 0 0 10px rgba(59,130,246,0); }
+        }
+
         @media (prefers-reduced-motion: reduce) {
+          .chip-in, .aurora, .cta-pulse {
+            animation: none !important;
+          }
+
           *,
           *::before,
           *::after {
@@ -961,7 +1049,7 @@ export default function Portfolio() {
         }
       `}</style>
 
-      <div className="fixed top-0 left-0 right-0 h-[3px] z-[60]">
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: "3px", zIndex: 60 }}>
         <div
           ref={progressRef}
           className="h-full bg-gradient-to-r from-blue-500 via-teal-400 to-blue-500"
@@ -1062,6 +1150,17 @@ export default function Portfolio() {
       >
         <TechBackground dark={dark} />
 
+        <div
+          className="aurora absolute -top-24 -right-24 rounded-full blur-3xl pointer-events-none"
+          style={{
+            width: "26rem",
+            height: "26rem",
+            background: dark
+              ? "radial-gradient(circle, rgba(59,130,246,.18), transparent 70%)"
+              : "radial-gradient(circle, rgba(59,130,246,.14), transparent 70%)"
+          }}
+        />
+
         {[...Array(10)].map((_, i) => (
           <span
             key={i}
@@ -1079,8 +1178,8 @@ export default function Portfolio() {
           />
         ))}
 
-        <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[1.1fr_.9fr] gap-12 lg:gap-20 items-center px-5 sm:px-6 pt-28 sm:pt-32 pb-16 sm:pb-24">
-          <div className="text-center lg:text-left">
+        <div className="relative max-w-7xl mx-auto flex flex-col lg:flex-row gap-12 lg:gap-20 items-center px-5 sm:px-6 pt-28 sm:pt-32 pb-16 sm:pb-24">
+          <div className="text-center lg:text-left lg:basis-7/12">
             <Reveal>
               <span
                 className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold border mb-6 ${T.badgeBg}`}
@@ -1092,7 +1191,8 @@ export default function Portfolio() {
 
             <Reveal delay={80}>
               <h1
-                className={`text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.05] ${T.heading}`}
+                style={{ lineHeight: 1.05 }}
+                className={`text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight ${T.heading}`}
               >
                 Hi, I'm{" "}
                 <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">
@@ -1121,7 +1221,7 @@ export default function Portfolio() {
               <div className="mt-7 flex flex-wrap items-center justify-center lg:justify-start gap-3">
                 <button
                   onClick={() => scrollTo("projects")}
-                  className={`px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 flex items-center gap-2 ${T.pillBtn}`}
+                  className={`cta-pulse px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 flex items-center gap-2 ${T.pillBtn}`}
                 >
                   Explore My Work
                   <ArrowUpRight size={16} />
@@ -1148,7 +1248,7 @@ export default function Portfolio() {
             </Reveal>
           </div>
 
-          <Reveal delay={200}>
+          <Reveal delay={200} className="w-full lg:basis-5/12">
             <AIPortfolioAssistant dark={dark} />
           </Reveal>
         </div>
@@ -1215,16 +1315,17 @@ export default function Portfolio() {
           >
             {SKILLS.map((s, i) => (
               <Reveal key={s.cat} delay={i * 35}>
-                <div className="grid grid-cols-1 sm:grid-cols-[210px_1fr] gap-x-6 gap-y-2 py-4">
-                  <h3 className={`text-sm font-bold ${T.heading}`}>
+                <div className="flex flex-col sm:flex-row gap-x-6 gap-y-2 py-4">
+                  <h3 className={`text-sm font-bold sm:w-52 sm:shrink-0 ${T.heading}`}>
                     {s.cat}
                   </h3>
 
                   <div className="flex flex-wrap gap-2">
-                    {s.items.map((item) => (
+                    {s.items.map((item, idx) => (
                       <span
                         key={item}
-                        className={`px-2.5 py-1 rounded-full text-xs border ${
+                        style={{ animationDelay: `${idx * 35}ms` }}
+                        className={`chip-in px-2.5 py-1 rounded-full text-xs border ${
                           dark
                             ? "border-slate-700 bg-slate-800/70 text-slate-300"
                             : "border-slate-200 bg-white text-slate-600"
