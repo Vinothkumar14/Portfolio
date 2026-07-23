@@ -213,7 +213,7 @@ const INTRO_STAGES = [
 const QUICK_ACTIONS = [
   {
     label: "About Me",
-    reply: "Vinothkumar is a Full Stack Developer with over two years of experience building enterprise applications, AI applications and modern software systems."
+    reply: "Vinothkumar Palanisamy is a Full Stack Developer with over two years of experience building enterprise applications, AI applications and modern software systems."
   },
   {
     label: "AI Projects",
@@ -229,7 +229,7 @@ const QUICK_ACTIONS = [
   },
   {
     label: "Contact",
-    reply: "You can connect with Vinothkumar through LinkedIn, GitHub, email or the contact section below."
+    reply: "You can connect with Vinothkumar Palanisamy through LinkedIn, GitHub, email or the contact section below."
   },
 ];
 
@@ -441,32 +441,34 @@ function AIPortfolioAssistant({ dark }) {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
 
-    // Known Indian-English male voice names across engines/platforms.
+    // Known male voice names across engines/platforms (Indian + general).
     const maleNames = [
       "microsoft ravi", "ravi", "microsoft prabhat", "prabhat",
-      "hemant", "rishi", "madhur", "google english (india)", "english india"
+      "hemant", "rishi", "madhur", // Rishi = iOS Indian-English male voice
+      "david", "mark", "guy", "daniel", "james", "fred", "aaron",
+      "eric", "matthew", "george", "arthur", "oliver"
     ];
-    // Known Indian-English female voice names — always excluded, even if
-    // nothing else matches, so a female voice is never picked by accident.
+    // Known female voice names across engines/platforms — always excluded.
     const femaleNames = [
-      "microsoft heera", "heera", "kalpana", "lekha", "veena",
-      "priya", "female"
+      "microsoft heera", "heera", "kalpana", "lekha", "veena", "priya",
+      "samantha", "victoria", "zira", "susan", "karen", "moira",
+      "tessa", "fiona", "kate", "serena", "google हिन्दी"
     ];
 
-    const isFemale = (v) => femaleNames.some((n) => v.name.toLowerCase().includes(n));
+    const isFemale = (v) => femaleNames.some((n) => v.name.toLowerCase().includes(n)) || /\bfemale\b/i.test(v.name);
     const isMaleHint = (v) => maleNames.some((n) => v.name.toLowerCase().includes(n)) || /\bmale\b/i.test(v.name);
     const isIndianEnglish = (v) => v.lang.toLowerCase().startsWith("en-in");
 
     return (
-      // 1) Explicit Indian + male name match — best case.
+      // 1) Best case: Indian English AND explicitly male.
       voices.find((v) => isIndianEnglish(v) && isMaleHint(v)) ||
-      // 2) Any Indian voice as long as it isn't explicitly flagged female
-      //    (many mobile engines expose only one en-IN voice with no gender
-      //    in the name — this avoids defaulting to a female one when a
-      //    same-named male alternative isn't offered).
-      voices.find((v) => isIndianEnglish(v) && !isFemale(v)) ||
-      // 3) Any voice anywhere with an explicit male hint.
+      // 2) Any voice anywhere that is explicitly, confidently male —
+      //    this outranks an Indian voice of UNKNOWN gender, because many
+      //    mobile devices ship exactly one unlabeled en-IN voice that is
+      //    female by default. Being male matters more than the accent.
       voices.find((v) => isMaleHint(v) && !isFemale(v)) ||
+      // 3) Indian English voice, only if not explicitly flagged female.
+      voices.find((v) => isIndianEnglish(v) && !isFemale(v)) ||
       // 4) Last resort: any English voice that isn't explicitly female.
       voices.find((v) => /^en/i.test(v.lang) && !isFemale(v)) ||
       null
@@ -1196,7 +1198,7 @@ export default function Portfolio() {
               >
                 Hi, I'm{" "}
                 <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">
-                  Vinothkumar
+                  Vinothkumar Palanisamy
                 </span>
               </h1>
             </Reveal>
